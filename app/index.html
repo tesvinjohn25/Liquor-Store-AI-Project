@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Store Reorder</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header id="topbar">
+  <h1>Store Reorder</h1>
+  <div id="freshness" class="muted"></div>
+</header>
+
+<main id="view"></main>
+
+<nav id="tabs">
+  <button data-tab="low" class="tab">Low&nbsp;Stock</button>
+  <button data-tab="inventory" class="tab">Inventory</button>
+  <button data-tab="orders" class="tab">Orders</button>
+  <button data-tab="data" class="tab">Data</button>
+</nav>
+
+<script src="vendor/xlsx.full.min.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

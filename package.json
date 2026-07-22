@@ -1,0 +1,17 @@
+{
+  "name": "liquor-store-ai-project",
+  "version": "0.1.0",
+  "description": "Phone-friendly reorder & inventory tool for a liquor store, deployed on GitHub Pages.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "playwright": "^1.58.2",
+    "xlsx": "^0.18.5"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}
