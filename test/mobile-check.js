@@ -75,6 +75,19 @@ await page.fill("#par-bottles", "0");
 await shot("3-par-editor");
 await page.click("#par-save");
 
+// Photo: attach an image through the editor's capture input, verify the
+// thumbnail replaces the glyph here and in the inventory list.
+await page.click('.item[data-barcode="080432400630"]');
+page.on("dialog", async (d) => { console.error("DIALOG:", d.message()); await d.dismiss(); });
+const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64"); // valid 1x1 PNG
+await page.setInputFiles("#photo-file", { name: "bottle.png", mimeType: "image/png", buffer: PNG });
+await page.waitForSelector(".thumb.lg img");
+if ((await page.locator("#photo-remove").isHidden())) fail("Remove photo button should appear after capture");
+await page.click("#par-back");
+await page.fill("#inv-search", "Johnnie Walker Black");
+await page.waitForSelector('.item[data-barcode="080432400630"] .thumb img');
+await page.fill("#inv-search", "");
+
 // Low-stock list should now show it, short 1 case, with the summary strip
 // and the tab badge. Tiers start collapsed — verify that, then open one via
 // its actual summary click (not the test helper) to prove the interaction.

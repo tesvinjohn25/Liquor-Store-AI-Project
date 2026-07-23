@@ -268,3 +268,25 @@ details.tier:not([open]) > summary { color: var(--muted); }
   cursor: pointer;
 }
 .dl-row:last-child { border-bottom: none; }
+
+/* ---- bottle photos */
+.thumb {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 42px; height: 42px;
+  border-radius: 8px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  overflow: hidden;
+}
+.thumb svg { width: 20px; height: 20px; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; }
+.thumb.lg { width: 96px; height: 96px; border-radius: 12px; }
+.thumb.lg svg { width: 40px; height: 40px; }
+
+.photo-card { display: flex; gap: 14px; align-items: center; }
+.photo-actions { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.photo-actions .action { padding: 8px 14px; font-size: 14px; }
+.dl-row-name { display: inline-flex; align-items: center; gap: 8px; }
+.dl-row-name .thumb { width: 34px; height: 34px; }

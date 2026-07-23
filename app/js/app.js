@@ -5,6 +5,7 @@ import { lowStockTiers, TIER_FAST, TIER_STEADY, unsetPar, needsInventoryFix, ord
 import { sheetText, explainSuggestion, qtyLabel } from "./ordersheet.js";
 import { exportBackup, importBackup } from "./backup.js";
 import { loadDemoData } from "./demo.js";
+import { savePhoto, deletePhoto, getPhotoURL, hydratePhotos, thumbHtml } from "./photos.js";
 
 const INVENTORY_ROW_CAP = 250; // 8k-row exports: render at most this many
 
@@ -178,7 +179,7 @@ function renderDlDetail(items, colIndex, expanded) {
     <div class="dl-detail-title">${esc(title)} (${items.length})</div>
     ${shown.map((p) => `
       <div class="dl-row" data-barcode="${esc(p.barcode)}">
-        <span>${esc(p.name)} <span class="sub">${esc(p.size)}</span></span>
+        <span class="dl-row-name">${thumbHtml(p.barcode)}<span>${esc(p.name)} <span class="sub">${esc(p.size)}</span></span></span>
         <span class="sub">${p.suggestedCases > 0 ? `order ${qtyLabel(p.suggestedCases, p.packSize)}` : `${formatUnits(p.onHandUnits, p.packSize)} / ${formatUnits(p.effParUnits, p.packSize)}`}</span>
       </div>`).join("")}
     ${hidden > 0 ? `<button class="chip" id="dl-see-more">See ${hidden} more</button>` : ""}`;
@@ -188,6 +189,7 @@ function renderDlDetail(items, colIndex, expanded) {
   document.getElementById("dl-see-more")?.addEventListener("click", () => {
     renderDlDetail(items, colIndex, true);
   });
+  hydratePhotos(box);
 }
 
 function lowItemHtml(p, tierKey) {
@@ -201,6 +203,7 @@ function lowItemHtml(p, tierKey) {
     .filter(Boolean).join(" · ") + soldTag;
   return `
     <div class="item" data-barcode="${esc(p.barcode)}">
+      ${thumbHtml(p.barcode)}
       <div style="flex:1">
         <div class="name">${esc(p.name)} <span class="sub">${esc(p.size)}</span></div>
         <div class="sub">${esc(sub)}</div>
@@ -281,6 +284,7 @@ function renderLow() {
     render();
   });
   wireDashboard();
+  hydratePhotos(view);
 }
 
 // The search input is rendered ONCE and never rebuilt while typing — only the
@@ -345,7 +349,8 @@ function renderInventoryList() {
         : `<div>${formatUnits(p.onHandUnits, p.packSize)}</div>`;
       return `
         <div class="item" data-barcode="${esc(p.barcode)}">
-          <div>
+          ${thumbHtml(p.barcode)}
+          <div style="flex:1">
             <div class="name">${esc(p.name)} <span class="sub">${esc(p.size)}</span></div>
             <div class="sub">${info}</div>
           </div>
@@ -366,6 +371,7 @@ function renderInventoryList() {
   list.querySelectorAll(".item[data-barcode]").forEach((el) => {
     el.addEventListener("click", () => openParEditor(el.dataset.barcode));
   });
+  hydratePhotos(list);
 }
 
 function openParEditor(barcode) {
@@ -377,8 +383,18 @@ function openParEditor(barcode) {
     : packed ? toCasesBottles(p.parUnits, p.packSize) : { cases: p.parUnits, bottles: 0 };
   const autoTarget = p.avgMonthlyUnits > 0 ? Math.ceil(p.avgMonthlyUnits * cover()) : null;
 
+  const searchUrl = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(`${p.name} ${p.size} bottle`)}`;
   view.innerHTML = `
     <h2>${esc(p.name)} ${esc(p.size)}</h2>
+    <div class="card photo-card">
+      ${thumbHtml(p.barcode, "lg")}
+      <div class="photo-actions">
+        <label class="action secondary" for="photo-file">📷 Take photo</label>
+        <input type="file" id="photo-file" accept="image/*" capture="environment">
+        <button class="action secondary" id="photo-remove" hidden>Remove photo</button>
+        <a class="sub" href="${searchUrl}" target="_blank" rel="noopener">Find photo online ↗</a>
+      </div>
+    </div>
     <div class="card">
       <div class="sub">${esc([p.distributor, packed ? `pack of ${p.packSize}` : null].filter(Boolean).join(" · "))}</div>
       <p>On hand: <b>${p.onHandUnits < 0 ? `${p.onHandUnits} (needs inventory fix)` : formatUnits(p.onHandUnits, p.packSize)}</b></p>
@@ -418,6 +434,26 @@ function openParEditor(barcode) {
     render();
   });
   document.getElementById("par-back").addEventListener("click", render);
+
+  // Photo wiring: capture → downscale → store; thumbnail refreshes in place.
+  hydratePhotos(view);
+  const removeBtn = document.getElementById("photo-remove");
+  getPhotoURL(p.barcode).then((url) => { if (url) removeBtn.hidden = false; });
+  document.getElementById("photo-file").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      await savePhoto(p.barcode, file);
+      await hydratePhotos(view);
+      removeBtn.hidden = false;
+    } catch (err) {
+      alert(`Could not save photo: ${err.message}`);
+    }
+  });
+  removeBtn.addEventListener("click", async () => {
+    await deletePhoto(p.barcode);
+    openParEditor(barcode);
+  });
 }
 
 // "Order By" tab: every product with a depletion clock, grouped by the date
@@ -435,6 +471,7 @@ function deadlineItemHtml(p) {
   const sells = p.avgMonthlyUnits != null ? ` · sells ~${p.avgMonthlyUnits}/mo` : "";
   return `
     <div class="item" data-barcode="${esc(p.barcode)}">
+      ${thumbHtml(p.barcode)}
       <div style="flex:1">
         <div class="name">${esc(p.name)} <span class="sub">${esc(p.size)}</span></div>
         <div class="sub">must order by <b>${esc(date)}</b> (${esc(when)})${sells}</div>
@@ -483,6 +520,7 @@ function renderDeadlines() {
   view.querySelectorAll(".item[data-barcode]").forEach((el) => {
     el.addEventListener("click", () => openParEditor(el.dataset.barcode));
   });
+  hydratePhotos(view);
 }
 
 function renderOrders() {
