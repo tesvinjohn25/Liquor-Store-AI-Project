@@ -90,6 +90,16 @@ await page.locator("details.tier summary").first().click();
 if (!(await page.locator(".badge.low").first().isVisible())) fail("tier did not expand on tap");
 await shot("4-low-stock");
 
+// Dashboard: health bar renders; tapping the "Now" column lists the
+// below-par bottle and its row opens the par editor.
+if ((await page.locator(".healthbar").count()) !== 1) fail("health bar missing");
+if (!(await page.textContent("#dashboard")).includes("tracked items at a healthy level")) fail("health headline missing");
+await page.click('.dl-col[data-col="0"]');
+const detail = await page.textContent("#dl-detail");
+if (!detail.includes("Must order now")) fail("deadline detail panel missing");
+if (!detail.includes("Johnnie Walker Black")) fail("deadline detail missing the due bottle");
+await shot("12-dashboard");
+
 // The needs-par shortcut filters inventory to products without a par.
 await page.click("#go-needs-par");
 const needsParCount = await page.locator("#inv-list .item").count();

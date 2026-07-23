@@ -77,6 +77,10 @@ into three tiers — 🔥 Fast movers, Steady sellers, and a collapsed Slow &
 limited tier — so a handful of empty shelves don't get buried under hundreds
 of slow-moving items.
 
+Low Stock opens with a **dashboard**: a color-coded health bar (healthy /
+low / out / needs-fix, with counts) and a tappable two-week timeline of how
+many bottles must be ordered each day — tap a bar to see which bottles.
+
 The **Order By** tab turns the same math into a schedule: for every product
 with a depletion clock, the date it must be ordered (run-out date minus the
 configurable delivery lead time), bucketed into Order now / this week /

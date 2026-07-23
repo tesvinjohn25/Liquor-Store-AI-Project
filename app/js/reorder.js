@@ -186,3 +186,21 @@ export function deadlineBuckets(products, opts = {}) {
   }
   return { ...buckets, all };
 }
+
+// Overall inventory health for the dashboard chart: how the tracked catalog
+// (products with a depletion clock — sales history or a manual par) splits
+// across healthy / low / out / needs-fix. Dead catalog is excluded so the
+// picture reflects stock the store actually manages.
+export function inventoryHealth(products, coverMonths = DEFAULT_COVER_MONTHS) {
+  const counts = { healthy: 0, low: 0, out: 0, negative: 0, tracked: 0 };
+  for (const p of activeProducts(products)) {
+    const par = effectivePar(p, coverMonths);
+    if (par == null || par <= 0) continue;
+    counts.tracked++;
+    if (p.onHandUnits < 0) counts.negative++;
+    else if (p.onHandUnits === 0) counts.out++;
+    else if (p.onHandUnits < par) counts.low++;
+    else counts.healthy++;
+  }
+  return counts;
+}

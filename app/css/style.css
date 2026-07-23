@@ -198,3 +198,73 @@ details.tier:not([open]) > summary { color: var(--muted); }
   body { padding: 0; }
   pre.sheet { border: none; }
 }
+
+/* ---- Low Stock dashboard (status palette validated: good→warn→crit→fix) */
+:root {
+  --status-good: #0ca30c;
+  --status-warn: #fab219;
+  --status-crit: #d03b3b;
+  --status-fix:  #ec835a;
+}
+
+.healthbar {
+  display: flex;
+  gap: 2px; /* surface gap between stacked segments */
+  height: 14px;
+  margin: 8px 0 6px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.healthbar .seg { min-width: 3px; }
+.healthbar .seg.good { background: var(--status-good); }
+.healthbar .seg.warn { background: var(--status-warn); }
+.healthbar .seg.crit { background: var(--status-crit); }
+.healthbar .seg.fix  { background: var(--status-fix); }
+
+.health-legend {
+  display: flex; flex-wrap: wrap; gap: 4px 14px;
+  font-size: 13px; color: var(--muted);
+}
+.health-legend .dot {
+  display: inline-block; width: 9px; height: 9px;
+  border-radius: 50%; margin-right: 5px;
+}
+.health-legend .dot.good { background: var(--status-good); }
+.health-legend .dot.warn { background: var(--status-warn); }
+.health-legend .dot.crit { background: var(--status-crit); }
+.health-legend .dot.fix  { background: var(--status-fix); }
+
+.dl-chart {
+  display: flex; align-items: flex-end; gap: 2px;
+  margin-top: 6px;
+  min-height: 92px;
+}
+.dl-col {
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  gap: 2px;
+  background: none; border: none; padding: 4px 0 0;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.dl-col.selected { background: var(--line); }
+.dl-count { font-size: 11px; color: var(--fg); min-height: 14px; font-weight: 600; }
+.dl-bar {
+  width: 70%;
+  border-radius: 4px 4px 0 0; /* rounded data-end, flat baseline */
+  background: var(--line);
+}
+.dl-bar.crit { background: var(--status-crit); }
+.dl-bar.warn { background: var(--status-warn); }
+.dl-bar.ok   { background: var(--accent); }
+.dl-day { font-size: 10px; color: var(--muted); }
+
+.dl-detail-title { font-weight: 700; font-size: 14px; margin: 10px 0 4px; }
+.dl-row {
+  display: flex; justify-content: space-between; gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+  cursor: pointer;
+}
+.dl-row:last-child { border-bottom: none; }

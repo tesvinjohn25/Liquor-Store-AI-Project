@@ -1,7 +1,7 @@
 import { StorageAdapter } from "./store.js";
 import { importExport } from "./importer.js";
 import { toUnits, toCasesBottles, formatUnits } from "./units.js";
-import { lowStockTiers, TIER_FAST, TIER_STEADY, unsetPar, needsInventoryFix, orderSuggestions, effectivePar, deadlineBuckets, DEFAULT_COVER_MONTHS, DEFAULT_LEAD_TIME_DAYS } from "./reorder.js";
+import { lowStockTiers, TIER_FAST, TIER_STEADY, unsetPar, needsInventoryFix, orderSuggestions, effectivePar, deadlineBuckets, orderDeadlines, inventoryHealth, DEFAULT_COVER_MONTHS, DEFAULT_LEAD_TIME_DAYS } from "./reorder.js";
 import { sheetText, explainSuggestion, qtyLabel } from "./ordersheet.js";
 import { exportBackup, importBackup } from "./backup.js";
 import { loadDemoData } from "./demo.js";
@@ -84,6 +84,90 @@ function stockBar(p) {
   return `<div class="stockbar"><div class="${onHand === 0 ? "zero" : "low"}" style="width:${Math.max(pct, 3)}%"></div></div>`;
 }
 
+// Inventory dashboard: a stacked health bar (status colors, always paired
+// with labels and counts — never color alone) and a tappable 14-day
+// must-order-by timeline. Sits between the notices and the tier list.
+const DAY_MS_UI = 86400000;
+
+function healthDashboardHtml() {
+  const h = inventoryHealth(state.products, cover());
+  if (h.tracked === 0) return "";
+  const pct = Math.round((h.healthy / h.tracked) * 100);
+  const seg = (n, cls) => n > 0 ? `<div class="seg ${cls}" style="flex:${n}"></div>` : "";
+  // Segment order (good→warning→critical→serious) is CVD-validated.
+  const bar = `
+    <div class="healthbar" role="img" aria-label="${pct}% of tracked items healthy">
+      ${seg(h.healthy, "good")}${seg(h.low, "warn")}${seg(h.out, "crit")}${seg(h.negative, "fix")}
+    </div>
+    <div class="health-legend">
+      <span><i class="dot good"></i>healthy ${h.healthy}</span>
+      <span><i class="dot warn"></i>low ${h.low}</span>
+      <span><i class="dot crit"></i>out ${h.out}</span>
+      ${h.negative ? `<span><i class="dot fix"></i>fix ${h.negative}</span>` : ""}
+    </div>`;
+
+  // 14-day deadline timeline: "Now" bar (overdue) then one bar per day.
+  const dl = orderDeadlines(state.products, { coverMonths: cover(), leadTimeDays: leadTime(), now: Date.now() });
+  const cols = [{ label: "Now", items: [] }];
+  for (let d = 1; d <= 13; d++) {
+    cols.push({ label: String(new Date(Date.now() + d * DAY_MS_UI).getDate()), items: [] });
+  }
+  let later = 0;
+  for (const it of dl) {
+    if (it.daysUntilOrder <= 0) cols[0].items.push(it);
+    else if (it.daysUntilOrder <= 13) cols[it.daysUntilOrder].items.push(it);
+    else later++;
+  }
+  const maxN = Math.max(1, ...cols.map((c) => c.items.length));
+  const bars = cols.map((c, i) => {
+    const n = c.items.length;
+    const hgt = n === 0 ? 2 : Math.max(6, Math.round((n / maxN) * 56));
+    const cls = i === 0 ? "crit" : i <= 3 ? "warn" : "ok";
+    return `
+      <button class="dl-col" data-col="${i}" aria-label="${n} bottle${n === 1 ? "" : "s"} due ${c.label === "Now" ? "now" : "on day " + c.label}">
+        <span class="dl-count">${n > 0 ? n : ""}</span>
+        <span class="dl-bar ${cls}" style="height:${hgt}px"></span>
+        <span class="dl-day">${c.label}</span>
+      </button>`;
+  }).join("");
+
+  return `
+    <div class="card" id="dashboard">
+      <div class="sub"><b>${pct}%</b> of ${h.tracked} tracked items at a healthy level</div>
+      ${bar}
+      <div class="sub" style="margin-top:12px">Bottles that must be ordered — next 2 weeks (tap a bar)</div>
+      <div class="dl-chart">${bars}</div>
+      ${later > 0 ? `<div class="sub">+${later} more due later than 2 weeks</div>` : ""}
+      <div id="dl-detail"></div>
+    </div>`;
+}
+
+function wireDashboard() {
+  const dl = orderDeadlines(state.products, { coverMonths: cover(), leadTimeDays: leadTime(), now: Date.now() });
+  document.querySelectorAll(".dl-col").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".dl-col").forEach((b) => b.classList.remove("selected"));
+      btn.classList.add("selected");
+      const i = Number(btn.dataset.col);
+      const items = dl.filter((it) => (i === 0 ? it.daysUntilOrder <= 0 : it.daysUntilOrder === i));
+      const box = document.getElementById("dl-detail");
+      if (items.length === 0) { box.innerHTML = `<div class="sub" style="margin-top:8px">Nothing due ${i === 0 ? "now" : "that day"}.</div>`; return; }
+      const title = i === 0 ? "Must order now" : `Must order by ${new Date(items[0].deadlineDate + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+      box.innerHTML = `
+        <div class="dl-detail-title">${esc(title)} (${items.length})</div>
+        ${items.slice(0, 10).map((p) => `
+          <div class="dl-row" data-barcode="${esc(p.barcode)}">
+            <span>${esc(p.name)} <span class="sub">${esc(p.size)}</span></span>
+            <span class="sub">${p.suggestedCases > 0 ? `order ${qtyLabel(p.suggestedCases, p.packSize)}` : `${formatUnits(p.onHandUnits, p.packSize)} / ${formatUnits(p.effParUnits, p.packSize)}`}</span>
+          </div>`).join("")}
+        ${items.length > 10 ? `<div class="sub">…and ${items.length - 10} more (see Order By tab)</div>` : ""}`;
+      box.querySelectorAll(".dl-row").forEach((el) => {
+        el.addEventListener("click", () => openParEditor(el.dataset.barcode));
+      });
+    });
+  });
+}
+
 function lowItemHtml(p, tierKey) {
   const soldTag = tierKey === "slow" && p.monthsActive != null
     ? ` · sold in ${p.monthsActive}/4 mo`
@@ -137,6 +221,8 @@ function renderLow() {
     html += `<button class="notice warn linklike" id="go-needs-par">${noPar.length} product${noPar.length === 1 ? " has" : "s have"} no par level yet — tap to set them ›</button>`;
   }
 
+  html += healthDashboardHtml();
+
   if (low.length === 0) {
     html += `<h2>Below target (0)</h2><div class="card"><div class="empty">Nothing below target. 🎉</div></div>`;
   } else {
@@ -172,6 +258,7 @@ function renderLow() {
     currentTab = "inventory"; invMode = "needs-fix"; inventoryFilter = "";
     render();
   });
+  wireDashboard();
 }
 
 // The search input is rendered ONCE and never rebuilt while typing — only the
