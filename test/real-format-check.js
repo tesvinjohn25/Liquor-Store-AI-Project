@@ -80,6 +80,17 @@ if (!sheet.includes("ORDER — Order list")) fail("order sheet missing");
 if (/\d cs —/.test(sheet)) fail("order sheet wrongly uses cases without pack data");
 await page.screenshot({ path: join(outDir, "10-real-order-sheet.png") });
 
+// Dashboard "Must order now": preview of 5 rows, See-more expands the rest.
+await page.click('[data-tab="low"]');
+await page.click('.dl-col[data-col="0"]');
+const previewRows = await page.locator("#dl-detail .dl-row").count();
+if (previewRows > 5) fail(`detail preview shows ${previewRows} rows, expected <= 5`);
+const seeMore = page.locator("#dl-see-more");
+if ((await seeMore.count()) !== 1) fail("See more button missing");
+await seeMore.click();
+const allRows = await page.locator("#dl-detail .dl-row").count();
+if (allRows <= previewRows) fail("See more did not expand the list");
+
 // Manual par override wins over the auto target, via the single-unit editor.
 await page.click('[data-tab="inventory"]');
 const firstItem = page.locator("#inv-list .item").first();

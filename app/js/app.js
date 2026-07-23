@@ -150,21 +150,38 @@ function wireDashboard() {
       btn.classList.add("selected");
       const i = Number(btn.dataset.col);
       const items = dl.filter((it) => (i === 0 ? it.daysUntilOrder <= 0 : it.daysUntilOrder === i));
-      const box = document.getElementById("dl-detail");
-      if (items.length === 0) { box.innerHTML = `<div class="sub" style="margin-top:8px">Nothing due ${i === 0 ? "now" : "that day"}.</div>`; return; }
-      const title = i === 0 ? "Must order now" : `Must order by ${new Date(items[0].deadlineDate + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
-      box.innerHTML = `
-        <div class="dl-detail-title">${esc(title)} (${items.length})</div>
-        ${items.slice(0, 10).map((p) => `
-          <div class="dl-row" data-barcode="${esc(p.barcode)}">
-            <span>${esc(p.name)} <span class="sub">${esc(p.size)}</span></span>
-            <span class="sub">${p.suggestedCases > 0 ? `order ${qtyLabel(p.suggestedCases, p.packSize)}` : `${formatUnits(p.onHandUnits, p.packSize)} / ${formatUnits(p.effParUnits, p.packSize)}`}</span>
-          </div>`).join("")}
-        ${items.length > 10 ? `<div class="sub">…and ${items.length - 10} more (see Order By tab)</div>` : ""}`;
-      box.querySelectorAll(".dl-row").forEach((el) => {
-        el.addEventListener("click", () => openParEditor(el.dataset.barcode));
-      });
+      renderDlDetail(items, i, false);
     });
+  });
+}
+
+// Deadline detail panel: a few rows first, then "See more" expands the rest.
+const DL_PREVIEW_COUNT = 5;
+
+function renderDlDetail(items, colIndex, expanded) {
+  const box = document.getElementById("dl-detail");
+  if (items.length === 0) {
+    box.innerHTML = `<div class="sub" style="margin-top:8px">Nothing due ${colIndex === 0 ? "now" : "that day"}.</div>`;
+    return;
+  }
+  const title = colIndex === 0
+    ? "Must order now"
+    : `Must order by ${new Date(items[0].deadlineDate + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+  const shown = expanded ? items : items.slice(0, DL_PREVIEW_COUNT);
+  const hidden = items.length - shown.length;
+  box.innerHTML = `
+    <div class="dl-detail-title">${esc(title)} (${items.length})</div>
+    ${shown.map((p) => `
+      <div class="dl-row" data-barcode="${esc(p.barcode)}">
+        <span>${esc(p.name)} <span class="sub">${esc(p.size)}</span></span>
+        <span class="sub">${p.suggestedCases > 0 ? `order ${qtyLabel(p.suggestedCases, p.packSize)}` : `${formatUnits(p.onHandUnits, p.packSize)} / ${formatUnits(p.effParUnits, p.packSize)}`}</span>
+      </div>`).join("")}
+    ${hidden > 0 ? `<button class="chip" id="dl-see-more">See ${hidden} more</button>` : ""}`;
+  box.querySelectorAll(".dl-row").forEach((el) => {
+    el.addEventListener("click", () => openParEditor(el.dataset.barcode));
+  });
+  document.getElementById("dl-see-more")?.addEventListener("click", () => {
+    renderDlDetail(items, colIndex, true);
   });
 }
 
