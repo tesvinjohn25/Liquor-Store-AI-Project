@@ -60,8 +60,9 @@ body {
   min-height: 52px;
   border: none; background: none;
   color: var(--muted);
-  font-size: 14px; font-weight: 600;
+  font-size: 13px; font-weight: 600;
   cursor: pointer;
+  padding: 0 2px;
 }
 .tab.active { color: var(--accent); border-top: 2px solid var(--accent); }
 

@@ -123,3 +123,66 @@ export function orderSuggestions(products, coverMonths = DEFAULT_COVER_MONTHS) {
     }))
     .sort((a, b) => a.distributor.localeCompare(b.distributor));
 }
+
+// ---------------------------------------------------------------------------
+// Order deadlines ("must order by"): for every product with a depletion
+// clock, the date to place the order so delivery lands before stock crosses
+// below its target.
+//
+//   days until crossing = (on hand − target) / daily sales rate
+//   must order by       = crossing date − delivery lead time
+//
+// Already-below-target items get a negative number (overdue). Items with a
+// manual par but no sales history have no clock: they appear only once
+// below par, as "due now" (0). Dead catalog (no sales, no par) is excluded.
+export const DEFAULT_LEAD_TIME_DAYS = 3;
+const DAY_MS = 86400000;
+
+export function orderDeadlines(products, {
+  coverMonths = DEFAULT_COVER_MONTHS,
+  leadTimeDays = DEFAULT_LEAD_TIME_DAYS,
+  now = Date.now(),
+} = {}) {
+  const items = [];
+  for (const p of activeProducts(products)) {
+    const par = effectivePar(p, coverMonths);
+    if (par == null || par <= 0) continue;
+    const onHand = effectiveOnHand(p);
+    const daily = p.avgMonthlyUnits > 0 ? p.avgMonthlyUnits / 30 : null;
+
+    let daysUntilOrder;
+    if (daily) {
+      daysUntilOrder = Math.floor((onHand - par) / daily) - leadTimeDays;
+    } else if (onHand < par) {
+      daysUntilOrder = 0; // manual par, no sales data: due the moment it's low
+    } else {
+      continue; // above par with no sales data: no clock to run
+    }
+
+    items.push({
+      ...p,
+      effParUnits: par,
+      parSource: parSource(p),
+      daysUntilOrder,
+      deadlineDate: new Date(now + daysUntilOrder * DAY_MS).toISOString().slice(0, 10),
+      suggestedCases: suggestedCases(p, coverMonths),
+    });
+  }
+  return items.sort((a, b) =>
+    a.daysUntilOrder - b.daysUntilOrder ||
+    (b.avgMonthlyUnits ?? -1) - (a.avgMonthlyUnits ?? -1) ||
+    a.name.localeCompare(b.name));
+}
+
+export function deadlineBuckets(products, opts = {}) {
+  const all = orderDeadlines(products, opts);
+  const buckets = { overdue: [], week: [], twoWeeks: [], month: [], later: [] };
+  for (const it of all) {
+    if (it.daysUntilOrder <= 0) buckets.overdue.push(it);
+    else if (it.daysUntilOrder <= 7) buckets.week.push(it);
+    else if (it.daysUntilOrder <= 14) buckets.twoWeeks.push(it);
+    else if (it.daysUntilOrder <= 30) buckets.month.push(it);
+    else buckets.later.push(it);
+  }
+  return { ...buckets, all };
+}

@@ -1,7 +1,7 @@
 import { StorageAdapter } from "./store.js";
 import { importExport } from "./importer.js";
 import { toUnits, toCasesBottles, formatUnits } from "./units.js";
-import { lowStockTiers, TIER_FAST, TIER_STEADY, unsetPar, needsInventoryFix, orderSuggestions, effectivePar, DEFAULT_COVER_MONTHS } from "./reorder.js";
+import { lowStockTiers, TIER_FAST, TIER_STEADY, unsetPar, needsInventoryFix, orderSuggestions, effectivePar, deadlineBuckets, DEFAULT_COVER_MONTHS, DEFAULT_LEAD_TIME_DAYS } from "./reorder.js";
 import { sheetText, explainSuggestion, qtyLabel } from "./ordersheet.js";
 import { exportBackup, importBackup } from "./backup.js";
 import { loadDemoData } from "./demo.js";
@@ -19,6 +19,7 @@ const freshness = document.getElementById("freshness");
 
 function save() { storage.save(state); }
 function cover() { return state.coverMonths ?? DEFAULT_COVER_MONTHS; }
+function leadTime() { return state.leadTimeDays ?? DEFAULT_LEAD_TIME_DAYS; }
 
 function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => (
@@ -63,6 +64,7 @@ function render() {
   if (currentTab === "low") renderLow();
   else if (currentTab === "inventory") renderInventory();
   else if (currentTab === "orders") renderOrders();
+  else if (currentTab === "deadlines") renderDeadlines();
   else renderData();
 }
 
@@ -309,6 +311,71 @@ function openParEditor(barcode) {
   document.getElementById("par-back").addEventListener("click", render);
 }
 
+// "Order By" tab: every product with a depletion clock, grouped by the date
+// it must be ordered to keep the shelf at target (delivery lead time
+// included). Buckets collapsed by default; soonest deadline first inside.
+function deadlineItemHtml(p) {
+  const overdue = p.daysUntilOrder <= 0;
+  const when = overdue
+    ? (p.daysUntilOrder === 0 ? "due today" : `overdue ${-p.daysUntilOrder} day${p.daysUntilOrder === -1 ? "" : "s"}`)
+    : p.daysUntilOrder >= 14
+      ? `in ~${Math.round(p.daysUntilOrder / 7)} wks`
+      : `in ${p.daysUntilOrder} day${p.daysUntilOrder === 1 ? "" : "s"}`;
+  const date = new Date(p.deadlineDate + "T00:00:00")
+    .toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const sells = p.avgMonthlyUnits != null ? ` · sells ~${p.avgMonthlyUnits}/mo` : "";
+  return `
+    <div class="item" data-barcode="${esc(p.barcode)}">
+      <div style="flex:1">
+        <div class="name">${esc(p.name)} <span class="sub">${esc(p.size)}</span></div>
+        <div class="sub">must order by <b>${esc(date)}</b> (${esc(when)})${sells}</div>
+      </div>
+      <div class="qty">
+        ${p.suggestedCases > 0 ? `<span class="badge ${overdue ? "zero" : "low"}">order ${qtyLabel(p.suggestedCases, p.packSize)}</span>` : ""}
+        <div class="sub">${formatUnits(p.onHandUnits, p.packSize)} / ${formatUnits(p.effParUnits, p.packSize)}</div>
+      </div>
+    </div>`;
+}
+
+function renderDeadlines() {
+  const b = deadlineBuckets(state.products, { coverMonths: cover(), leadTimeDays: leadTime(), now: Date.now() });
+  let html = "";
+
+  if (b.all.length === 0) {
+    html = `<div class="empty">No order deadlines yet — import a POS export with
+      sales history, or set par levels, to build the schedule.</div>`;
+  } else {
+    html += `
+      <div class="card summary-row">
+        <div><b>${b.overdue.length}</b> to order now · <b>${b.week.length}</b> due this week
+          <div class="sub">assumes ${leadTime()}-day delivery — change under Data</div></div>
+      </div>`;
+    const groups = [
+      ["overdue", "🔴 Order now (overdue)"],
+      ["week", "Due this week"],
+      ["twoWeeks", "Due in 2 weeks"],
+      ["month", "Due this month"],
+    ];
+    for (const [key, label] of groups) {
+      const items = b[key];
+      if (items.length === 0) continue;
+      html += `
+        <details class="card tier">
+          <summary>${label} (${items.length})</summary>
+          ${items.map(deadlineItemHtml).join("")}
+        </details>`;
+    }
+    if (b.later.length > 0) {
+      html += `<div class="empty">${b.later.length} more item${b.later.length === 1 ? "" : "s"} not due for 30+ days.</div>`;
+    }
+  }
+  view.innerHTML = html;
+
+  view.querySelectorAll(".item[data-barcode]").forEach((el) => {
+    el.addEventListener("click", () => openParEditor(el.dataset.barcode));
+  });
+}
+
 function renderOrders() {
   const groups = orderSuggestions(state.products, cover());
   let html = "";
@@ -391,6 +458,16 @@ function renderData() {
       </div>
     </div>
 
+    <h2>Delivery lead time</h2>
+    <div class="card">
+      <p class="sub">How many days between placing an order and it arriving.
+      The Order By tab subtracts this from each product's run-out date.</p>
+      <div class="par-inputs">
+        <input type="number" id="lead-days" min="0" step="1" inputmode="numeric" value="${leadTime()}">
+        <span class="unit-label">days</span>
+      </div>
+    </div>
+
     <h2>Demo data</h2>
     <div class="card">
       <p class="sub">Load a 40-product sample inventory (with a few par levels
@@ -464,6 +541,13 @@ function renderData() {
     e.target.value = state.coverMonths;
     save();
     updateTabBadge();
+  });
+
+  document.getElementById("lead-days").addEventListener("change", (e) => {
+    const v = Math.floor(Number(e.target.value));
+    state.leadTimeDays = Number.isFinite(v) && v >= 0 ? v : DEFAULT_LEAD_TIME_DAYS;
+    e.target.value = state.leadTimeDays;
+    save();
   });
 
   document.getElementById("backup-export").addEventListener("click", () => {

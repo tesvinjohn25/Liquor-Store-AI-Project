@@ -77,6 +77,11 @@ into three tiers — 🔥 Fast movers, Steady sellers, and a collapsed Slow &
 limited tier — so a handful of empty shelves don't get buried under hundreds
 of slow-moving items.
 
+The **Order By** tab turns the same math into a schedule: for every product
+with a depletion clock, the date it must be ordered (run-out date minus the
+configurable delivery lead time), bucketed into Order now / this week /
+2 weeks / this month.
+
 ## If the export format changes (e.g. barcode/pack size/vendor get added)
 
 Everything POS-format-specific lives in **one file**: `app/js/posAdapter.js`.

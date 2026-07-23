@@ -96,6 +96,16 @@ const needsParCount = await page.locator("#inv-list .item").count();
 if (needsParCount !== 39) fail(`needs-par filter shows ${needsParCount}, expected 39`);
 await page.click("#clear-inv-mode");
 
+// Order By tab: below-par Johnnie Walker shows as overdue/due today.
+await page.click('[data-tab="deadlines"]');
+const dlText = await page.textContent("#view");
+if (!dlText.includes("Order now (overdue)")) fail("Order By missing overdue bucket");
+if (!dlText.includes("Johnnie Walker Black")) fail("Order By missing the below-par product");
+if (!dlText.includes("must order by")) fail("Order By missing deadline wording");
+await page.locator("details.tier summary").first().click();
+if (!(await page.locator("#view .item").first().isVisible())) fail("deadline bucket did not expand");
+await shot("11-order-by");
+
 // Summary strip button jumps straight to the order sheets.
 await page.click('[data-tab="low"]');
 await page.click("#go-orders");
