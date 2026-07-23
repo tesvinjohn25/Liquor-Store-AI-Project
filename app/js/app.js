@@ -383,7 +383,7 @@ function openParEditor(barcode) {
     : packed ? toCasesBottles(p.parUnits, p.packSize) : { cases: p.parUnits, bottles: 0 };
   const autoTarget = p.avgMonthlyUnits > 0 ? Math.ceil(p.avgMonthlyUnits * cover()) : null;
 
-  const searchUrl = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(`${p.name} ${p.size} bottle`)}`;
+  const q = encodeURIComponent(`${p.name} ${p.size}`);
   view.innerHTML = `
     <h2>${esc(p.name)} ${esc(p.size)}</h2>
     <div class="card photo-card">
@@ -391,8 +391,14 @@ function openParEditor(barcode) {
       <div class="photo-actions">
         <label class="action secondary" for="photo-file">📷 Take photo</label>
         <input type="file" id="photo-file" accept="image/*" capture="environment">
+        <label class="action secondary" for="photo-gallery">🖼 From gallery</label>
+        <input type="file" id="photo-gallery" accept="image/*">
+        <button class="action secondary" id="photo-paste">📋 Paste image</button>
         <button class="action secondary" id="photo-remove" hidden>Remove photo</button>
-        <a class="sub" href="${searchUrl}" target="_blank" rel="noopener">Find photo online ↗</a>
+        <span class="sub">Find it online:
+          <a href="https://www.totalwine.com/search/all?text=${q}" target="_blank" rel="noopener">Total Wine ↗</a> ·
+          <a href="https://www.google.com/search?tbm=isch&q=${q}%20bottle" target="_blank" rel="noopener">Images ↗</a>
+        </span>
       </div>
     </div>
     <div class="card">
@@ -439,8 +445,7 @@ function openParEditor(barcode) {
   hydratePhotos(view);
   const removeBtn = document.getElementById("photo-remove");
   getPhotoURL(p.barcode).then((url) => { if (url) removeBtn.hidden = false; });
-  document.getElementById("photo-file").addEventListener("change", async (e) => {
-    const file = e.target.files[0];
+  const attach = async (file) => {
     if (!file) return;
     try {
       await savePhoto(p.barcode, file);
@@ -448,6 +453,20 @@ function openParEditor(barcode) {
       removeBtn.hidden = false;
     } catch (err) {
       alert(`Could not save photo: ${err.message}`);
+    }
+  };
+  document.getElementById("photo-file").addEventListener("change", (e) => attach(e.target.files[0]));
+  document.getElementById("photo-gallery").addEventListener("change", (e) => attach(e.target.files[0]));
+  document.getElementById("photo-paste").addEventListener("click", async () => {
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const type = item.types.find((t) => t.startsWith("image/"));
+        if (type) return attach(await item.getType(type));
+      }
+      alert("No image on the clipboard — long-press the photo on the website and copy it first.");
+    } catch {
+      alert("Couldn't read the clipboard — your browser may not allow it. Save the image to your gallery instead and use 'From gallery'.");
     }
   });
   removeBtn.addEventListener("click", async () => {
