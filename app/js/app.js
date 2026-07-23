@@ -110,7 +110,8 @@ function healthDashboardHtml() {
   const dl = orderDeadlines(state.products, { coverMonths: cover(), leadTimeDays: leadTime(), now: Date.now() });
   const cols = [{ label: "Now", items: [] }];
   for (let d = 1; d <= 13; d++) {
-    cols.push({ label: String(new Date(Date.now() + d * DAY_MS_UI).getDate()), items: [] });
+    const dt = new Date(Date.now() + d * DAY_MS_UI);
+    cols.push({ label: `${dt.getMonth() + 1}/${dt.getDate()}`, items: [] });
   }
   let later = 0;
   for (const it of dl) {
@@ -149,7 +150,11 @@ function wireDashboard() {
       document.querySelectorAll(".dl-col").forEach((b) => b.classList.remove("selected"));
       btn.classList.add("selected");
       const i = Number(btn.dataset.col);
-      const items = dl.filter((it) => (i === 0 ? it.daysUntilOrder <= 0 : it.daysUntilOrder === i));
+      const items = dl
+        .filter((it) => (i === 0 ? it.daysUntilOrder <= 0 : it.daysUntilOrder === i))
+        .sort((a, b) =>
+          Math.max(0, a.onHandUnits) / a.effParUnits - Math.max(0, b.onHandUnits) / b.effParUnits ||
+          (b.avgMonthlyUnits ?? -1) - (a.avgMonthlyUnits ?? -1));
       renderDlDetail(items, i, false);
     });
   });

@@ -147,6 +147,10 @@ export function orderDeadlines(products, {
   for (const p of activeProducts(products)) {
     const par = effectivePar(p, coverMonths);
     if (par == null || par <= 0) continue;
+    // Slow movers (auto-flagged, under TIER_STEADY/mo) have no deadline:
+    // the owner stocks them opportunistically and orders on request. A
+    // manual par opts an item back in, same as tier promotion.
+    if (parSource(p) === "auto" && p.avgMonthlyUnits < TIER_STEADY) continue;
     const onHand = effectiveOnHand(p);
     const daily = p.avgMonthlyUnits > 0 ? p.avgMonthlyUnits / 30 : null;
 
@@ -168,8 +172,10 @@ export function orderDeadlines(products, {
       suggestedCases: suggestedCases(p, coverMonths),
     });
   }
+  const runway = (p) => Math.max(0, p.onHandUnits) / p.effParUnits;
   return items.sort((a, b) =>
     a.daysUntilOrder - b.daysUntilOrder ||
+    runway(a) - runway(b) ||
     (b.avgMonthlyUnits ?? -1) - (a.avgMonthlyUnits ?? -1) ||
     a.name.localeCompare(b.name));
 }

@@ -257,7 +257,7 @@ details.tier:not([open]) > summary { color: var(--muted); }
 .dl-bar.crit { background: var(--status-crit); }
 .dl-bar.warn { background: var(--status-warn); }
 .dl-bar.ok   { background: var(--accent); }
-.dl-day { font-size: 10px; color: var(--muted); }
+.dl-day { font-size: 9px; color: var(--muted); white-space: nowrap; }
 
 .dl-detail-title { font-weight: 700; font-size: 14px; margin: 10px 0 4px; }
 .dl-row {

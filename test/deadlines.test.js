@@ -52,6 +52,21 @@ describe("order deadlines (must-order-by)", () => {
     }
   });
 
+  test("slow movers (auto, under 6/mo) are excluded — special-order stock", () => {
+    const items = orderDeadlines(products, { now: NOW });
+    for (const p of items) {
+      if (p.parSource === "auto") expect(p.avgMonthlyUnits).toBeGreaterThanOrEqual(6);
+    }
+    // A manual par opts a slow item back in.
+    const slow = Object.values(products).find((x) => x.avgMonthlyUnits > 0 && x.avgMonthlyUnits < 6 && x.parUnits == null);
+    expect(slow).toBeDefined();
+    expect(items.find((x) => x.barcode === slow.barcode)).toBeUndefined();
+    slow.parUnits = Math.max(0, slow.onHandUnits) + 10;
+    const items2 = orderDeadlines(products, { now: NOW });
+    expect(items2.find((x) => x.barcode === slow.barcode)).toBeDefined();
+    slow.parUnits = null;
+  });
+
   test("buckets partition by days and sort soonest-first", () => {
     const b = deadlineBuckets(products, { now: NOW });
     expect(b.overdue.length + b.week.length + b.twoWeeks.length + b.month.length + b.later.length)
